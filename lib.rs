@@ -18,7 +18,7 @@ macro_rules! ensure {
 
 #[ink::contract]
 #[macro_use]
-mod vote {
+mod election_administrator {
     use super::*;
     use alloc::collections::BTreeMap;
     use scale::{Encode, Decode};
@@ -39,7 +39,7 @@ mod vote {
     }
    
     #[ink(storage)]
-    pub struct Vote {
+    pub struct ElectionAdministrator {
         nonce: u32,
         open_for_voting: bool,
         voters_register: BTreeMap<AccountId, PermanentVotersCard>,
@@ -47,7 +47,7 @@ mod vote {
         admin: AccountId,
         ballot_box: BTreeMap<BallotId, BallotPaper>
     }
-    impl Vote {
+    impl ElectionAdministrator {
         /// Constructor that initializes the `bool` value to the given `init_value`.
         #[ink(constructor)]
         pub fn new(admin: AccountId) -> Self {
@@ -276,14 +276,14 @@ mod vote {
         #[ink::test]
         fn register_to_vote_works() {
             let admin = default_accounts().alice;
-            let mut vote = Vote::new(admin);
+            let mut contract = ElectionAdministrator::new(admin);
             let nin = Hash::from([0x44; 32]);
             let state = Hash::from([0x88; 32]);
             let local_govt = Hash::from([0x55; 32]);
             let ward = Hash::from([0x77; 32]);
            
             set_next_caller(admin);
-            let reesult = vote.register_to_vote(
+            let reesult = contract.register_to_vote(
                 nin, 
                 state, 
                 local_govt, 
