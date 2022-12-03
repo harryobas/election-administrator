@@ -8,7 +8,16 @@ mod types;
 
 use types::*;
 
+macro_rules! ensure {
+    ($condition:expr, $error:expr $(,)?) => {{
+        if !$condition {
+            return Err($error);
+        }       
+    }};
+}
+
 #[ink::contract]
+#[macro_use]
 mod vote {
     use super::*;
     use alloc::collections::BTreeMap;
@@ -38,7 +47,6 @@ mod vote {
         admin: AccountId,
         ballot_box: BTreeMap<BallotId, BallotPaper>
     }
-
     impl Vote {
         /// Constructor that initializes the `bool` value to the given `init_value`.
         #[ink(constructor)]
@@ -52,6 +60,10 @@ mod vote {
             ballot_box: Default::default()
            }
         }
+        #[ink(constructor)]
+        pub fn default() -> Self {
+            Self::new(AccountId::from([0x99; 32]))
+        }
 
         #[ink(message)]
         pub fn register_to_vote(
@@ -61,7 +73,6 @@ mod vote {
             local_govt: Hash,
             ward: Hash
             ) -> Result<()> {
-
             let caller = self.env().caller();
             let voter_pvc = PermanentVotersCard {
                 nin,
@@ -70,9 +81,7 @@ mod vote {
                 ward
             };
 
-            if self.is_registered(caller){
-                return Err(Error::AlreayRegistered);
-            }
+            ensure!(!self.is_registered(caller), Error::AlreayRegistered);
             self.voters_register.insert(caller, voter_pvc);
             
             Ok(())
@@ -84,25 +93,19 @@ mod vote {
             party_name: Hash, 
             party_candidate: Hash
         ) -> Result<()> {
+
             let caller = self.env().caller();
-          
             let party = Party{
-                party_name,
-                party_candidate
+                party_name: Hash::from(party_name),
+                party_candidate: Hash::from(party_candidate)
             } ;
-            
-            if !(caller == self.admin){
-                return Err(Error::NotPermitted);
-            }
+            ensure!(caller == self.admin, Error::NotPermitted);
 
-            if self.party_register.len() == MAX_PARTY_NUM as usize{
-                return Err(Error::PartyRegistrationLimit);
-            }
-
-            if self.is_registered_party(party_name){
-                return Err(Error::PartyAlreadyRegistered);
-            }
-
+            ensure!(
+                !self.party_register.len() == MAX_PARTY_NUM as usize, 
+                Error::PartyRegistrationLimit
+            );
+            ensure!(!self.is_registered_party(party_name), Error::PartyAlreadyRegistered);
             self.party_register.insert(party.party_name, party);
           
             Ok(())
@@ -118,40 +121,28 @@ mod vote {
             party: Hash
         ) -> Result<()> {
                 let caller = self.env().caller();
-
-                if !self.is_registered(caller){
-                    return Err(Error::NotRegisteredToVote);
-                }
+                ensure!(self.is_registered(caller), Error::NotRegisteredToVote);
 
                 let voter_pvc = self.voters_register.get(&caller).unwrap();
-
                 if !Self::voter_is_accredited (
                     voter_pvc, 
                     state, 
                     local_govt, 
                     ward,
-                    nin
-                ) {
+                    nin) {
                     return Err(Error::VoterAccreditationFailure);
-                }
+                    } 
                     
-                if !self.is_registered_party(party){
-                    return Err(Error::PartyIsNotRegistered);
-                }
-
-                if !self.open_for_voting{
-                    return Err(Error::NotOpenForVoting);
-                }
-
+                ensure!(self.is_registered_party(party), Error::PartyIsNotRegistered);
+                ensure!(self.open_for_voting, Error::NotOpenForVoting);
+               
                 let party = self.party_register.get(&party).unwrap();
                 let ballot_id = self.nonce;
-
                 let ballot_paper = BallotPaper{
                     ballot_id,
                     vote_choice: party.clone(),
                     state
                 };
-
                 self.ballot_box.insert(ballot_id, ballot_paper);
                 self.nonce += 1;
 
@@ -160,11 +151,7 @@ mod vote {
 
             #[ink(message)]
             pub fn total_vote_count(&self) -> VoteCount {
-                self.ballot_box
-                .values()
-                .cloned()
-                .collect::<Vec<BallotPaper>>()
-                .len() as VoteCount
+                self.ballot_box.len() as VoteCount
             }
 
             #[ink(message)]
@@ -172,17 +159,15 @@ mod vote {
                 if self.is_registered_party(party){
                     return self.state_vote_count(party, state);
                 }
-        
+
                 0  
             }
 
             #[ink(message)]
             pub fn party_vote_count(&self, party: Hash) -> VoteCount{
-        
                 let ballot_paper_filter = |p: &BallotPaper| -> bool {
                     p.vote_choice.party_name == party 
                 };
-
                 self.ballot_box
                 .values()
                 .cloned()
@@ -192,13 +177,10 @@ mod vote {
                 .len() as VoteCount
             }
 
-
             #[ink(message)]
             pub fn start_election(&mut self) -> Result<()> {
                 let caller = self.env().caller();
-                if !(caller == self.admin){
-                    return Err(Error::NotPermitted);
-                }
+                ensure!(caller == self.admin, Error::NotPermitted);
                 self.open_for_voting = true;
 
                 Ok(())
@@ -207,10 +189,7 @@ mod vote {
             #[ink(message)]
             pub fn end_election(&mut self) -> Result<()> {
                 let caller = self.env().caller();
-
-                if !(caller == self.admin) {
-                    return Err(Error::NotPermitted);
-                }
+                ensure!(caller == self.admin, Error::NotPermitted);
                 self.open_for_voting = false;
 
                 Ok(())
@@ -219,17 +198,10 @@ mod vote {
             #[ink(message)]
             pub fn collate_election_results(&mut self) -> Result<Vec<ElectionResult>>{
                 let caller = self.env().caller();
-
-                if !(caller == self.admin) {
-                    return Err(Error::NotPermitted);
-                }
-
-                if self.open_for_voting{
-                    return Err(Error::UableToCollateElectionResults);
-                }
-
+                ensure!(caller == self.admin, Error::NotPermitted);
+                ensure!(!self.open_for_voting, Error::UableToCollateElectionResults);
+               
                 let mut results = Vec::new();
-
                 let mut parties = self.party_register
                 .values()
                 .cloned()
@@ -242,30 +214,25 @@ mod vote {
 
                     (party, state, vote_count)
                 };
-
                 while let Some(party) = parties.pop(){
                     let result = self.ballot_box
                     .values()
                     .filter(|b| b.vote_choice.party_name == party.party_name )
-                    .map(|b| collate_result(&b))
+                    .map(|b| collate_result(b))
                     .collect::<Vec<ElectionResult>>();
 
                     results.push(result);
                 }
-
                 let results = results.concat();
                 Ok(results)
-
             }
 
             fn is_registered(&self, voter: AccountId) -> bool {
                 self.voters_register.contains_key(&voter)
             }
-
             fn is_registered_party(&self, party: Hash) -> bool {
-                self.party_register.contains_key(&party)
+                 self.party_register.contains_key(&party)
             }
-        
             fn voter_is_accredited(
                 voter_pvc: &PermanentVotersCard,
                 nin: Hash, 
@@ -278,57 +245,56 @@ mod vote {
                     (voter_pvc.ward == ward) && 
                     (voter_pvc.nin == nin)
                 }
-        
             fn state_vote_count(&self, party: Hash, state: Hash) -> VoteCount{
                 let ballot_paper_filter = |p: &BallotPaper| -> bool {
                     p.state == state && p.vote_choice.party_name == party
                 };
-
                 self.ballot_box
                 .values()
                 .filter(|val| ballot_paper_filter(val))
                 .map(|v| v.clone())
                 .collect::<Vec<BallotPaper>>()
                 .len() as VoteCount
-            }
-
-           
+            }       
         }
-    }
-
-    #[cfg(test)]
+        #[cfg(test)]
     mod tests {
-        /// Imports all the definitions from the outer scope so we can use them here.
         use super::*;
-        use ink_env::{hash::{Blake2x256, HashOutput}, AccountId, Hash};
-
-        /// Imports `ink_lang` so we can use `#[ink::test]`.
+     
         use ink_lang as ink;
 
-        fn generate_hash(bytes: &[u8]) -> Hash {
-            let mut output = <Blake2x256 as HashOutput>::Type::default();
-            <Blake2x256 as ink_env::hash::CryptoHash>::hash(bytes, &mut output);
-    
-            Hash::from(output)
+        fn default_accounts(
+        ) -> ink_env::test::DefaultAccounts<ink_env::DefaultEnvironment> {
+            ink_env::test::default_accounts::<Environment>()
+        }
+
+        fn set_next_caller(caller: AccountId) {
+            ink_env::test::set_caller::<Environment>(caller);
         }
 
         /// We test if the default constructor does its job.
         #[ink::test]
-        fn default_works() {
-            let vote = Vote::default();
-            assert_eq!(vote.get(), false);
+        fn register_to_vote_works() {
+            let admin = default_accounts().alice;
+            let mut vote = Vote::new(admin);
+            let nin = Hash::from([0x44; 32]);
+            let state = Hash::from([0x88; 32]);
+            let local_govt = Hash::from([0x55; 32]);
+            let ward = Hash::from([0x77; 32]);
+           
+            set_next_caller(admin);
+            let reesult = vote.register_to_vote(
+                nin, 
+                state, 
+                local_govt, 
+                ward
+            );
+            
+            assert_eq!(reesult, Ok(())); 
         }
-
-        /// We test a simple use case of our contract.
-        #[ink::test]
-        fn it_works() {
-            let mut vote = Vote::new(false);
-            assert_eq!(vote.get(), false);
-            vote.flip();
-            assert_eq!(vote.get(), true);
-        }
+    }
     }
 
 
-    
 
+    

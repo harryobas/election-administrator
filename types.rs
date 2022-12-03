@@ -5,7 +5,7 @@ use ink_env::Hash;
 #[derive(Debug, Clone, Encode, Decode, PackedLayout, SpreadLayout, scale_info::TypeInfo)]
 pub struct Party{
     pub party_name: Hash,
-    pub party_candidate: Hash,
+    pub party_candidate: Hash
 }
 
 #[derive(Debug, Clone, Encode, Decode, PackedLayout, SpreadLayout, scale_info::TypeInfo)]
@@ -31,4 +31,8 @@ pub type BallotId = u32;
 pub type VoteCount = u32;
 pub type ElectionResult = (Hash, Hash, VoteCount);
 
+
+
+
 pub const MAX_PARTY_NUM: u32 = 10;
+
