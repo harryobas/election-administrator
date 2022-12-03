@@ -48,7 +48,7 @@ mod election_administrator {
         ballot_box: BTreeMap<BallotId, BallotPaper>
     }
     impl ElectionAdministrator {
-        /// Constructor that initializes the `bool` value to the given `init_value`.
+        /// Constructor that initializes the contract
         #[ink(constructor)]
         pub fn new(admin: AccountId) -> Self {
            Self {
@@ -257,7 +257,8 @@ mod election_administrator {
                 .len() as VoteCount
             }       
         }
-        #[cfg(test)]
+
+    #[cfg(test)]
     mod tests {
         use super::*;
      
@@ -272,7 +273,6 @@ mod election_administrator {
             ink_env::test::set_caller::<Environment>(caller);
         }
 
-        /// We test if the default constructor does its job.
         #[ink::test]
         fn register_to_vote_works() {
             let admin = default_accounts().alice;
@@ -283,17 +283,45 @@ mod election_administrator {
             let ward = Hash::from([0x77; 32]);
            
             set_next_caller(admin);
-            let reesult = contract.register_to_vote(
+            let result = contract.register_to_vote(
                 nin, 
                 state, 
                 local_govt, 
                 ward
             );
             
-            assert_eq!(reesult, Ok(())); 
+            assert_eq!(result, Ok(())); 
+        }
+        #[ink::test]
+        fn register_to_vote_when_caller_is_alreeady_registered(){
+            let admin = default_accounts().alice;
+            let mut contract = ElectionAdministrator::new(admin);
+            let nin = Hash::from([0x44; 32]);
+            let state = Hash::from([0x88; 32]);
+            let local_govt = Hash::from([0x55; 32]);
+            let ward = Hash::from([0x77; 32]);
+
+            let voter_pvc = PermanentVotersCard{
+                nin,
+                state,
+                local_govt,
+                ward,
+            };
+            contract.voters_register.insert(default_accounts().bob, voter_pvc);
+
+            set_next_caller(default_accounts().bob);
+            let result = contract.register_to_vote(
+                nin, 
+                state, 
+                local_govt, 
+                ward
+            );
+
+            assert_eq!(result, Err(Error::AlreayRegistered));
         }
     }
-    }
+}
+    
 
 
 
