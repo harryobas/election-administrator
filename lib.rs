@@ -1,11 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use ink_lang as ink;
-
 extern crate alloc;
 
 mod types;
-
 use types::*;
 
 macro_rules! ensure {
@@ -40,7 +38,7 @@ mod election_administrator {
    
     #[ink(storage)]
     pub struct ElectionAdministrator {
-        nonce: u32,
+        nonce: Index,
         open_for_voting: bool,
         voters_register: BTreeMap<AccountId, PermanentVotersCard>,
         party_register: BTreeMap<Hash, Party>,
@@ -63,8 +61,8 @@ mod election_administrator {
         #[ink(constructor)]
         pub fn default() -> Self {
             Self::new(AccountId::from([0x99; 32]))
+    
         }
-
         #[ink(message)]
         pub fn register_to_vote(
             &mut self,
@@ -75,7 +73,6 @@ mod election_administrator {
             ) -> Result<()> {
             let caller = self.env().caller();
             ensure!(!self.is_registered(caller), Error::AlreayRegistered);
-
             let voter_pvc = PermanentVotersCard {
                 nin,
                 state,
@@ -94,7 +91,6 @@ mod election_administrator {
             party_candidate: Hash
         ) -> Result<()> {
             let caller = self.env().caller();
-
             ensure!(caller == self.admin, Error::NotPermitted);
             ensure!(!self.is_registered_party(party_name), Error::PartyAlreadyRegistered);
             ensure!(
@@ -102,8 +98,8 @@ mod election_administrator {
                 Error::PartyRegistrationLimit
             );
             let party = Party{
-                party_name: Hash::from(party_name),
-                party_candidate: Hash::from(party_candidate)
+                party_name,
+                party_candidate
             } ;
             self.party_register.insert(party.party_name, party);
           
@@ -152,7 +148,6 @@ mod election_administrator {
             pub fn total_vote_count(&self) -> VoteCount {
                 self.ballot_box.len() as VoteCount
             }
-
             #[ink(message)]
             pub fn party_vote_count_for_state(
                 &self,
@@ -161,7 +156,6 @@ mod election_administrator {
                ensure!(self.is_registered_party(party), Error::UnRegisteredParty);
                Ok(self.state_vote_count(party, state))
             }
-
             #[ink(message)]
             pub fn party_vote_count(&self, party: Hash) -> Result<VoteCount>{
                 ensure!(self.is_registered_party(party), Error::UnRegisteredParty);
@@ -234,6 +228,7 @@ mod election_administrator {
             }
             fn is_registered_party(&self, party: Hash) -> bool {
                  self.party_register.contains_key(&party)
+                 
             }
             fn voter_is_accredited(
                 voter_pvc: &PermanentVotersCard,
@@ -289,8 +284,7 @@ mod election_administrator {
                 state, 
                 local_govt, 
                 ward
-            );
-            
+            ); 
             assert_eq!(result, Ok(())); 
             assert!(contract.voters_register.len() > 0);
         }
@@ -318,7 +312,6 @@ mod election_administrator {
                 local_govt, 
                 ward
             );
-
             assert_eq!(result, Err(Error::AlreayRegistered));
         }
         #[ink::test]
@@ -350,9 +343,7 @@ mod election_administrator {
                 party_name,
                 party_candidate
             );
-
             assert_eq!(result, Err(Error::NotPermitted));
-
         }
     }
 }

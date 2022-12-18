@@ -30,9 +30,7 @@ pub struct BallotPaper{
 pub type BallotId = u32;
 pub type VoteCount = u32;
 pub type ElectionResult = (Hash, Hash, VoteCount);
-
-
-
+pub type Index = u32;
 
 pub const MAX_PARTY_NUM: u32 = 10;
 
